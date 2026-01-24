@@ -1,17 +1,33 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { contentId: string } },
+  req: NextRequest,
+  context: { params: Promise<{ contentId: string }> },
 ) {
-  const contentId = params.contentId;
-  const segments = await prisma.transcriptSegment.findMany({
-    where: { contentId },
-    orderBy: { start: "asc" },
-    take: 2000,
-    select: { start: true, dur: true, text: true },
-  });
+  try {
+    const { contentId } = await context.params;
+    const decoded = decodeURIComponent(contentId);
 
-  return NextResponse.json({ ok: true, contentId, segments });
+    const segments = await prisma.transcriptSegment.findMany({
+      where: { contentId: decoded },
+      orderBy: { start: "asc" },
+      select: {
+        start: true,
+        dur: true,
+        text: true,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      contentId: decoded,
+      segments,
+    });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || "Server error" },
+      { status: 500 },
+    );
+  }
 }

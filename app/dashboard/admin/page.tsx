@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminStats from "./AdminStats";
 import AdminVotesTable from "./AdminVotesTable";
+import AdminContentTable from "./AdminContentTable";
 
 type MeResponse = {
   user?: {
@@ -109,6 +110,7 @@ export default function AdminDashboardPage() {
 
       <AdminStats token={token} />
       <AdminVotesTable token={token} />
+      <AdminContentTable token={token} />
     </div>
   );
 }
