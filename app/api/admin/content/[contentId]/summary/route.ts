@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import { getGoogleUserFromAccessToken } from "@/app/lib/google";
+import { VoteType } from "@/app/generated/prisma/enums";
 import {
   acquireLock,
   checkRateLimit,
@@ -52,30 +53,22 @@ export async function GET(
     const adminId = check.user.id;
     const { contentId } = await context.params;
     const decodedContentId = decodeURIComponent(contentId);
-
     const url = new URL(req.url);
     const fresh =
       url.searchParams.get("fresh") === "1" ||
       req.headers.get("x-cache-bypass") === "1";
-    const limit = Math.min(Number(url.searchParams.get("limit") || 50), 200);
-    const page = Math.max(Number(url.searchParams.get("page") || 1), 1);
-    const skip = (page - 1) * limit;
 
-    const cacheKey = `admin-content-votes:${decodedContentId}:${page}:${limit}`;
+    const cacheKey = `admin-content-summary:${decodedContentId}`;
     if (!fresh) {
-      const cached = await getCached<{
-        ok: boolean;
-        votes: any[];
-        total: number;
-        page: number;
-        limit: number;
-      }>(cacheKey);
+      const cached = await getCached<{ ok: boolean; contentId: string }>(
+        cacheKey,
+      );
       if (cached) return NextResponse.json(cached);
     }
 
     if (fresh) {
       const limitCheck = await checkRateLimit(req.headers, {
-        keyPrefix: "refresh-admin-content-votes",
+        keyPrefix: "refresh-admin-summary",
         keySuffix: adminId,
         max: 30,
         windowMs: 60_000,
@@ -89,41 +82,79 @@ export async function GET(
           },
         );
       }
-      lockKey = `lock:admin-content-votes:${decodedContentId}:${page}:${limit}`;
+      lockKey = `lock:admin-summary:${decodedContentId}`;
       lockAcquired = await acquireLock(lockKey, 3000);
       if (!lockAcquired) {
-        const cached = await getCached<{
-          ok: boolean;
-          votes: any[];
-          total: number;
-          page: number;
-          limit: number;
-        }>(cacheKey);
+        const cached = await getCached<{ ok: boolean; contentId: string }>(
+          cacheKey,
+        );
         if (cached) return NextResponse.json(cached);
       }
     }
 
-    const [votes, total] = await Promise.all([
-      prisma.vote.findMany({
+    const grouped = await prisma.vote.groupBy({
+      by: ["timeBucket", "voteType"],
       where: { contentId: decodedContentId },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        contentId: true,
-        voteType: true,
-        timeSeconds: true,
-        timeBucket: true,
-        pageUrl: true,
-        createdAt: true,
-        user: { select: { id: true, email: true, name: true } },
-      },
-    }),
-      prisma.vote.count({ where: { contentId: decodedContentId } }),
+      _count: { _all: true },
+      orderBy: [{ timeBucket: "asc" }],
+    });
+
+    const buckets: Record<number, { up: number; down: number }> = {};
+    for (const row of grouped) {
+      const tb = row.timeBucket;
+      if (!buckets[tb]) buckets[tb] = { up: 0, down: 0 };
+      if (row.voteType === VoteType.UP) buckets[tb].up = row._count._all;
+      if (row.voteType === VoteType.DOWN) buckets[tb].down = row._count._all;
+    }
+
+    const timeline = Object.entries(buckets).map(([timeBucket, v]) => ({
+      timeBucket: Number(timeBucket),
+      up: v.up,
+      down: v.down,
+    }));
+
+    const [maxVote, lastSegment] = await Promise.all([
+      prisma.vote.aggregate({
+        where: { contentId: decodedContentId },
+        _max: { timeSeconds: true },
+      }),
+      prisma.transcriptSegment.findFirst({
+        where: { contentId: decodedContentId },
+        orderBy: { start: "desc" },
+        select: { start: true, dur: true },
+      }),
     ]);
 
-    const payload = { ok: true, votes, total, page, limit };
+    const transcriptDuration = lastSegment
+      ? Math.max(0, lastSegment.start + (lastSegment.dur || 0))
+      : null;
+
+    const durationSeconds = transcriptDuration ?? maxVote._max.timeSeconds ?? 0;
+
+    const totals = await prisma.vote.groupBy({
+      by: ["voteType"],
+      where: { contentId: decodedContentId },
+      _count: { _all: true },
+    });
+
+    const totalMap = { up: 0, down: 0 };
+    for (const t of totals) {
+      if (t.voteType === VoteType.UP) totalMap.up = t._count._all;
+      if (t.voteType === VoteType.DOWN) totalMap.down = t._count._all;
+    }
+
+    const payload = {
+      ok: true,
+      contentId: decodedContentId,
+      totals: {
+        up: totalMap.up,
+        down: totalMap.down,
+        total: totalMap.up + totalMap.down,
+      },
+      durationSeconds,
+      timeline,
+    };
+
     await setCached(cacheKey, payload, 15_000);
     if (lockAcquired) await releaseLock(lockKey);
     return NextResponse.json(payload);

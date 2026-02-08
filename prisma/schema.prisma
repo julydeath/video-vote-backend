@@ -56,9 +56,11 @@ model Vote {
 
 enum TranscriptStatus {
   NONE
+  FETCHING
   FETCHED
   FAILED
 }
+
 
 model Content {
   contentId          String           @id               // ex: yt:VIDEOID

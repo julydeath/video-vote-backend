@@ -14,6 +14,13 @@ export async function GET(
         { status: 400 },
       );
 
+    const auth = req.headers.get("authorization") || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    console.log("Received token:", token);
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const url = new URL(req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") || 10), 50);
 

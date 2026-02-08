@@ -18,7 +18,12 @@ export async function POST(req: Request) {
     await getGoogleUserFromAccessToken(token);
 
     const body = await req.json().catch(() => null);
-    const contentId = body?.contentId;
+    const rawContentId = body?.contentId;
+    const contentId =
+      typeof rawContentId === "string"
+        ? decodeURIComponent(rawContentId)
+        : null;
+
     const segments = body?.segments as Seg[] | undefined;
 
     if (!contentId || typeof contentId !== "string") {
@@ -84,6 +89,7 @@ export async function POST(req: Request) {
       ok: true,
       contentId,
       inserted: clean.length,
+      transcriptStatus: TranscriptStatus.FETCHED,
       total,
     });
   } catch (e: any) {

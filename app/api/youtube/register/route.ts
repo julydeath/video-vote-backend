@@ -16,8 +16,12 @@ export async function POST(req: Request) {
     await getGoogleUserFromAccessToken(token);
 
     const body = await req.json().catch(() => null);
+    const rawContentId = body?.contentId;
+    const contentId =
+      typeof rawContentId === "string"
+        ? decodeURIComponent(rawContentId)
+        : null;
 
-    const contentId = body?.contentId;
     const baseUrl = body?.captionBaseUrl || null;
     const captionLanguage = body?.captionLanguage || null;
     const captionIsAuto = body?.captionIsAuto ?? null;
@@ -78,6 +82,8 @@ export async function POST(req: Request) {
       alreadyFetched: segCount > 0,
       segments: segCount,
       hasCaptionTrack: !!baseUrl,
+      transcriptStatus:
+        segCount > 0 ? TranscriptStatus.FETCHED : TranscriptStatus.NONE,
     });
   } catch (e: any) {
     return NextResponse.json(

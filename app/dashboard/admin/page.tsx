@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AdminStats from "./AdminStats";
-import AdminVotesTable from "./AdminVotesTable";
-import AdminContentTable from "./AdminContentTable";
+import AdminDashboard from "./AdminDashboard";
 
 type MeResponse = {
   user?: {
@@ -19,29 +17,26 @@ export default function AdminDashboardPage() {
   const [status, setStatus] = useState<string>("Checking extension login...");
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  // 1) Get token from extension
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.data?.type !== "GOOGLE_TOKEN_RESPONSE") return;
 
       if (event.data?.token) {
         setToken(event.data.token);
-        setStatus("✅ Logged in via extension");
+        setStatus("Logged in via extension");
       } else {
         setToken(null);
         setIsAdmin(null);
         setStatus(
-          `❌ Not logged in via extension (${event.data?.error || "no_token"})`,
+          `Not logged in via extension (${event.data?.error || "no_token"})`,
         );
       }
     }
 
     window.addEventListener("message", onMessage);
 
-    // ask extension for token
     window.postMessage({ type: "REQUEST_GOOGLE_TOKEN" }, "*");
 
-    // fallback ask again after 1s
     const t = setTimeout(() => {
       window.postMessage({ type: "REQUEST_GOOGLE_TOKEN" }, "*");
     }, 1000);
@@ -52,7 +47,6 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
-  // 2) Once token exists, verify role via /api/me
   useEffect(() => {
     if (!token) return;
 
@@ -68,49 +62,48 @@ export default function AdminDashboardPage() {
       .catch(() => setIsAdmin(false));
   }, [token]);
 
-  // ---- UI states ----
   if (!token) {
     return (
-      <div className="p-10">
-        <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-        <p className="text-neutral-400 mt-2">{status}</p>
-        <p className="text-neutral-500 mt-4">
-          Please login via the Chrome extension first.
-        </p>
+      <div className="app-shell px-6 py-12 md:px-10">
+        <div className="glass-panel p-6 max-w-xl">
+          <div className="text-sm text-[var(--muted)]">Admin Console</div>
+          <h1 className="text-2xl font-semibold mt-2">Sign in required</h1>
+          <p className="text-[var(--muted)] mt-3">{status}</p>
+          <p className="text-sm text-[var(--muted)] mt-4">
+            Please log in via the Chrome extension to continue.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (isAdmin === null) {
     return (
-      <div className="p-10">
-        <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-        <p className="text-neutral-400 mt-2">Checking permissions…</p>
+      <div className="app-shell px-6 py-12 md:px-10">
+        <div className="glass-panel p-6 max-w-xl">
+          <div className="text-sm text-[var(--muted)]">Admin Console</div>
+          <h1 className="text-2xl font-semibold mt-2">Verifying access…</h1>
+          <p className="text-[var(--muted)] mt-3">
+            Checking permissions for this account.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (isAdmin === false) {
     return (
-      <div className="p-10">
-        <h1 className="text-2xl font-bold text-white">Access denied</h1>
-        <p className="text-neutral-400 mt-2">You are not an admin.</p>
+      <div className="app-shell px-6 py-12 md:px-10">
+        <div className="glass-panel p-6 max-w-xl">
+          <div className="text-sm text-[var(--muted)]">Admin Console</div>
+          <h1 className="text-2xl font-semibold mt-2">Access denied</h1>
+          <p className="text-[var(--muted)] mt-3">
+            This account does not have admin permissions.
+          </p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="p-10 space-y-10">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-        <p className="text-neutral-400 mt-2">
-          You have admin access. Filter votes by users, URL, date, etc.
-        </p>
-      </div>
-
-      <AdminStats token={token} />
-      <AdminVotesTable token={token} />
-      <AdminContentTable token={token} />
-    </div>
-  );
+  return <AdminDashboard token={token} />;
 }

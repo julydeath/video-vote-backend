@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import UserVotesTable from "./UserVotesTable";
+import UserDashboard from "./UserDashboard";
 
 export default function DashboardPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -12,21 +12,19 @@ export default function DashboardPage() {
 
       if (event.data?.token) {
         setToken(event.data.token);
-        setStatus("✅ Logged in via extension");
+        setStatus("Logged in via extension");
       } else {
         setToken(null);
         setStatus(
-          `❌ Not logged in via extension (${event.data?.error || "no_token"})`,
+          `Not logged in via extension (${event.data?.error || "no_token"})`,
         );
       }
     }
 
     window.addEventListener("message", onMessage);
 
-    // ask extension for token
     window.postMessage({ type: "REQUEST_GOOGLE_TOKEN" }, "*");
 
-    // fallback: ask again after 1s (sometimes content_script loads after page)
     const t = setTimeout(() => {
       window.postMessage({ type: "REQUEST_GOOGLE_TOKEN" }, "*");
     }, 1000);
@@ -37,19 +35,20 @@ export default function DashboardPage() {
     };
   }, []);
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h1>Dashboard</h1>
-      <p>{status}</p>
+  if (!token) {
+    return (
+      <div className="app-shell px-6 py-12 md:px-10">
+        <div className="glass-panel p-6 max-w-xl">
+          <div className="text-sm text-[var(--muted)]">Reactor Dashboard</div>
+          <h1 className="text-2xl font-semibold mt-2">Sign in required</h1>
+          <p className="text-[var(--muted)] mt-3">{status}</p>
+          <p className="text-sm text-[var(--muted)] mt-4">
+            Please log in via the Chrome extension to view your reactions.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-      {token && (
-        <pre
-          style={{ wordBreak: "break-all", background: "#f5f5f5", padding: 12 }}
-        >
-          {token.slice(0, 40)}... (token received)
-          <UserVotesTable token={token} />
-        </pre>
-      )}
-    </div>
-  );
+  return <UserDashboard token={token} />;
 }

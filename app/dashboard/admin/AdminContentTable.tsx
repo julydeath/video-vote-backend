@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 type UserItem = {
   id: string;
@@ -8,6 +8,7 @@ type UserItem = {
   name?: string | null;
   role?: string;
 };
+
 type ContentRow = {
   contentId: string;
   up: number;
@@ -16,6 +17,7 @@ type ContentRow = {
   pageUrl?: string | null;
   lastVotedAt?: string | null;
 };
+
 type VoteRow = {
   id: string;
   voteType: "UP" | "DOWN";
@@ -46,13 +48,11 @@ export default function AdminContentTable({ token }: { token: string }) {
   const [items, setItems] = useState<ContentRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // filters
   const [userId, setUserId] = useState("");
   const [q, setQ] = useState("");
-  const [from, setFrom] = useState(""); // yyyy-mm-dd
+  const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  // expand
   const [openId, setOpenId] = useState<string | null>(null);
   const [votes, setVotes] = useState<VoteRow[] | null>(null);
   const [votesLoading, setVotesLoading] = useState(false);
@@ -122,29 +122,27 @@ export default function AdminContentTable({ token }: { token: string }) {
   const hasFilters = Boolean(userId || q.trim() || from || to);
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-      <div className="flex items-start justify-between gap-6 flex-wrap">
+    <div className="glass-panel p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-white">Content Votes</h2>
-          <p className="text-sm text-neutral-400">
-            Aggregated by contentId (YouTube + other sites)
+          <div className="section-title">Content Signals</div>
+          <div className="text-lg font-semibold">Votes by content</div>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            Aggregated across YouTube and other platforms.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadContent}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-          >
-            Refresh
-          </button>
-        </div>
+        <button
+          onClick={loadContent}
+          className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-xs"
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-2">
         <select
-          className="bg-neutral-800 text-white border border-neutral-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
         >
@@ -157,22 +155,22 @@ export default function AdminContentTable({ token }: { token: string }) {
         </select>
 
         <input
-          className="bg-neutral-800 text-white border border-neutral-700 rounded-lg px-3 py-2 text-sm placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search contentId or URL…"
+          placeholder="Search contentId or URL"
         />
 
         <input
           type="date"
-          className="bg-neutral-800 text-white border border-neutral-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
         />
 
         <input
           type="date"
-          className="bg-neutral-800 text-white border border-neutral-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"
           value={to}
           onChange={(e) => setTo(e.target.value)}
         />
@@ -181,11 +179,10 @@ export default function AdminContentTable({ token }: { token: string }) {
       <div className="mt-3 flex items-center gap-2">
         <button
           onClick={loadContent}
-          className="bg-neutral-800 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm border border-neutral-700 transition"
+          className="px-4 py-2 rounded-xl border border-[var(--accent-2)]/40 bg-[var(--accent-2)]/20 text-xs"
         >
           Apply filters
         </button>
-
         {hasFilters && (
           <button
             onClick={() => {
@@ -193,38 +190,31 @@ export default function AdminContentTable({ token }: { token: string }) {
               setQ("");
               setFrom("");
               setTo("");
-              // don’t auto-fetch; user can hit apply, or uncomment below:
-              // loadContent();
             }}
-            className="text-neutral-300 hover:text-white text-sm px-3 py-2 rounded-lg border border-neutral-800 hover:border-neutral-700 transition"
+            className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-xs"
           >
             Clear
           </button>
         )}
       </div>
 
-      {/* Table */}
-      <div className="mt-6 border border-neutral-800 rounded-xl overflow-hidden">
+      <div className="mt-5 border border-white/10 rounded-2xl overflow-hidden">
         <div className="max-h-[65vh] overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-800 text-neutral-300 sticky top-0 z-10">
+          <table className="w-full text-xs">
+            <thead className="bg-white/5 text-[var(--muted)] sticky top-0">
               <tr>
-                <th className="text-left px-4 py-3 font-medium">Content</th>
-                <th className="text-left px-4 py-3 font-medium">Up</th>
-                <th className="text-left px-4 py-3 font-medium">Down</th>
-                <th className="text-left px-4 py-3 font-medium">Total</th>
-                <th className="text-left px-4 py-3 font-medium">Last</th>
-                <th className="text-right px-4 py-3 font-medium">Actions</th>
+                <th className="text-left px-3 py-2">Content</th>
+                <th className="text-left px-3 py-2">Up</th>
+                <th className="text-left px-3 py-2">Down</th>
+                <th className="text-left px-3 py-2">Total</th>
+                <th className="text-left px-3 py-2">Last</th>
+                <th className="text-right px-3 py-2">Actions</th>
               </tr>
             </thead>
-
-            <tbody className="bg-neutral-900 text-neutral-200">
+            <tbody>
               {loading && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-10 text-center text-neutral-400"
-                  >
+                  <td colSpan={6} className="px-4 py-6 text-center">
                     Loading…
                   </td>
                 </tr>
@@ -232,178 +222,140 @@ export default function AdminContentTable({ token }: { token: string }) {
 
               {!loading && items.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-10 text-center text-neutral-400"
-                  >
+                  <td colSpan={6} className="px-4 py-6 text-center">
                     No results
-                    {hasFilters ? " for these filters." : "."}
                   </td>
                 </tr>
               )}
 
-              {!loading &&
-                items.map((it) => {
-                  const isOpen = openId === it.contentId;
-
-                  return (
-                    // ✅ Fragment instead of div to keep <tbody> valid
-                    <tbody key={it.contentId} className="border-0">
-                      <tr
-                        className={[
-                          "border-t border-neutral-800 transition",
-                          isOpen
-                            ? "bg-neutral-800/40"
-                            : "hover:bg-neutral-800/50",
-                        ].join(" ")}
-                      >
-                        <td className="px-4 py-3 max-w-xl">
-                          <div className="flex items-start gap-3">
-                            <button
-                              onClick={() => openDetails(it.contentId)}
-                              className="mt-0.5 shrink-0 w-7 h-7 rounded-md border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 transition flex items-center justify-center text-neutral-200"
-                              aria-label={isOpen ? "Collapse" : "Expand"}
-                              title={isOpen ? "Hide voters" : "View voters"}
-                            >
-                              {isOpen ? "–" : "+"}
-                            </button>
-
-                            <div className="min-w-0">
-                              <div className="truncate font-medium">
-                                {it.pageUrl ? (
-                                  <a
-                                    className="text-blue-400 hover:underline"
-                                    href={it.pageUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    title={it.pageUrl}
-                                  >
-                                    {it.contentId}
-                                  </a>
-                                ) : (
-                                  <span title={it.contentId}>
-                                    {it.contentId}
-                                  </span>
-                                )}
-                              </div>
-                              {it.pageUrl && (
-                                <div className="text-xs text-neutral-500 truncate mt-1">
-                                  {it.pageUrl}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3 text-green-400 font-medium tabular-nums">
-                          ▲ {it.up}
-                        </td>
-                        <td className="px-4 py-3 text-red-400 font-medium tabular-nums">
-                          ▼ {it.down}
-                        </td>
-                        <td className="px-4 py-3 tabular-nums">{it.total}</td>
-                        <td className="px-4 py-3 text-neutral-400">
-                          {fmtDate(it.lastVotedAt)}
-                        </td>
-
-                        <td className="px-4 py-3 text-right">
+              {items.map((it) => {
+                const isOpen = openId === it.contentId;
+                return (
+                  <Fragment key={it.contentId}>
+                    <tr
+                      className={`border-t border-white/10 ${
+                        isOpen ? "bg-white/5" : "hover:bg-white/5"
+                      }`}
+                    >
+                      <td className="px-3 py-2 max-w-[260px]">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => openDetails(it.contentId)}
-                            className="bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white px-3 py-1.5 rounded-lg text-xs transition"
+                            className="w-6 h-6 rounded-md border border-white/10 bg-white/5 text-xs"
                           >
-                            {isOpen ? "Hide" : "View voters"}
+                            {isOpen ? "–" : "+"}
                           </button>
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">
+                              {it.pageUrl ? (
+                                <a
+                                  className="text-[var(--accent-2)] hover:underline"
+                                  href={it.pageUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title={it.pageUrl || it.contentId}
+                                >
+                                  {it.contentId}
+                                </a>
+                              ) : (
+                                it.contentId
+                              )}
+                            </div>
+                            {it.pageUrl && (
+                              <div className="text-[10px] text-[var(--muted)] truncate">
+                                {it.pageUrl}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-[var(--accent)]">
+                        ▲ {it.up}
+                      </td>
+                      <td className="px-3 py-2 text-[var(--danger)]">
+                        ▼ {it.down}
+                      </td>
+                      <td className="px-3 py-2">{it.total}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">
+                        {fmtDate(it.lastVotedAt)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => openDetails(it.contentId)}
+                          className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 text-xs"
+                        >
+                          {isOpen ? "Hide" : "View"}
+                        </button>
+                      </td>
+                    </tr>
+
+                    {isOpen && (
+                      <tr className="border-t border-white/10">
+                        <td colSpan={6} className="px-4 py-4">
+                          {votesLoading && (
+                            <div className="text-[var(--muted)] text-xs">
+                              Loading votes…
+                            </div>
+                          )}
+
+                          {!votesLoading && (!votes || votes.length === 0) && (
+                            <div className="text-[var(--muted)] text-xs">
+                              No votes found.
+                            </div>
+                          )}
+
+                          {!votesLoading && votes && votes.length > 0 && (
+                            <div className="border border-white/10 rounded-xl overflow-hidden">
+                              <div className="max-h-72 overflow-auto">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-white/5 text-[var(--muted)] sticky top-0">
+                                    <tr>
+                                      <th className="text-left px-3 py-2">User</th>
+                                      <th className="text-left px-3 py-2">Vote</th>
+                                      <th className="text-left px-3 py-2">Time</th>
+                                      <th className="text-left px-3 py-2">Bucket</th>
+                                      <th className="text-left px-3 py-2">Date</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {votes.map((v) => (
+                                      <tr key={v.id} className="border-t border-white/10">
+                                        <td className="px-3 py-2">
+                                          {v.user.email || v.user.name || v.user.id}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <span
+                                            className={`chip ${
+                                              v.voteType === "UP"
+                                                ? "badge-up"
+                                                : "badge-down"
+                                            }`}
+                                          >
+                                            {v.voteType}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {fmtTime(v.timeSeconds)}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {v.timeBucket}s
+                                        </td>
+                                        <td className="px-3 py-2 text-[var(--muted)]">
+                                          {fmtDate(v.createdAt)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
-
-                      {isOpen && (
-                        <tr className="border-t border-neutral-800">
-                          <td
-                            colSpan={6}
-                            className="px-4 py-4 bg-neutral-950/40"
-                          >
-                            {votesLoading && (
-                              <div className="text-neutral-400 text-sm">
-                                Loading votes…
-                              </div>
-                            )}
-
-                            {!votesLoading &&
-                              (!votes || votes.length === 0) && (
-                                <div className="text-neutral-400 text-sm">
-                                  No votes found.
-                                </div>
-                              )}
-
-                            {!votesLoading && votes && votes.length > 0 && (
-                              <div className="border border-neutral-800 rounded-xl overflow-hidden">
-                                <div className="max-h-72 overflow-auto">
-                                  <table className="w-full text-xs">
-                                    <thead className="bg-neutral-900 text-neutral-400 sticky top-0">
-                                      <tr>
-                                        <th className="text-left px-3 py-2">
-                                          User
-                                        </th>
-                                        <th className="text-left px-3 py-2">
-                                          Vote
-                                        </th>
-                                        <th className="text-left px-3 py-2">
-                                          Time
-                                        </th>
-                                        <th className="text-left px-3 py-2">
-                                          Bucket
-                                        </th>
-                                        <th className="text-left px-3 py-2">
-                                          Date
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="bg-neutral-950 text-neutral-200">
-                                      {votes.map((v) => (
-                                        <tr
-                                          key={v.id}
-                                          className="border-t border-neutral-900"
-                                        >
-                                          <td className="px-3 py-2">
-                                            <div className="font-medium">
-                                              {v.user.email ||
-                                                v.user.name ||
-                                                v.user.id}
-                                            </div>
-                                          </td>
-                                          <td className="px-3 py-2">
-                                            {v.voteType === "UP" ? (
-                                              <span className="text-green-400 font-semibold">
-                                                ▲ UP
-                                              </span>
-                                            ) : (
-                                              <span className="text-red-400 font-semibold">
-                                                ▼ DOWN
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-2 tabular-nums">
-                                            {fmtTime(v.timeSeconds)}
-                                          </td>
-                                          <td className="px-3 py-2 tabular-nums">
-                                            {v.timeBucket}s
-                                          </td>
-                                          <td className="px-3 py-2 text-neutral-400">
-                                            {fmtDate(v.createdAt)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  );
-                })}
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

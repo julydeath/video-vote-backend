@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import { getGoogleUserFromAccessToken } from "@/app/lib/google";
+import {
+  acquireLock,
+  checkRateLimit,
+  getCached,
+  releaseLock,
+  setCached,
+} from "@/app/lib/publicCache";
 
 async function requireAdmin(req: Request) {
   const auth = req.headers.get("authorization") || "";
@@ -18,7 +25,7 @@ async function requireAdmin(req: Request) {
   if (user.role !== "ADMIN")
     return { ok: false as const, status: 403, error: "Forbidden" };
 
-  return { ok: true as const };
+  return { ok: true as const, user };
 }
 
 function parseDate(v: string | null) {
@@ -28,6 +35,8 @@ function parseDate(v: string | null) {
 }
 
 export async function GET(req: Request) {
+  let lockAcquired = false;
+  let lockKey = "";
   try {
     const check = await requireAdmin(req);
     if (!check.ok)
@@ -36,12 +45,47 @@ export async function GET(req: Request) {
         { status: check.status },
       );
 
+    const adminId = check.user.id;
     const url = new URL(req.url);
+    const fresh =
+      url.searchParams.get("fresh") === "1" ||
+      req.headers.get("x-cache-bypass") === "1";
     const userId = url.searchParams.get("userId") || "";
     const q = (url.searchParams.get("q") || "").trim();
     const from = parseDate(url.searchParams.get("from"));
     const to = parseDate(url.searchParams.get("to"));
     const limit = Math.min(Number(url.searchParams.get("limit") || 50), 200);
+    const page = Math.max(Number(url.searchParams.get("page") || 1), 1);
+
+    const cacheKey = `admin-content:${url.searchParams.toString()}`;
+    if (!fresh) {
+      const cached = await getCached<{ ok: boolean; items: any[] }>(cacheKey);
+      if (cached) return NextResponse.json(cached);
+    }
+
+    lockKey = `lock:admin-content:${adminId}:${url.searchParams.toString()}`;
+    if (fresh) {
+      const limitCheck = await checkRateLimit(req.headers, {
+        keyPrefix: "refresh-admin-content",
+        keySuffix: adminId,
+        max: 20,
+        windowMs: 60_000,
+      });
+      if (!limitCheck.ok) {
+        return NextResponse.json(
+          { error: "Refresh rate limit exceeded" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(limitCheck.retryAfter) },
+          },
+        );
+      }
+      lockAcquired = await acquireLock(lockKey, 3000);
+      if (!lockAcquired) {
+        const cached = await getCached<{ ok: boolean; items: any[] }>(cacheKey);
+        if (cached) return NextResponse.json(cached);
+      }
+    }
 
     const where: any = {};
     if (userId) where.userId = userId;
@@ -85,7 +129,9 @@ export async function GET(req: Request) {
     // 3) sort by most activity
     rows.sort((a, b) => b.up + b.down - (a.up + a.down));
 
-    const top = rows.slice(0, limit);
+    const total = rows.length;
+    const start = (page - 1) * limit;
+    const top = rows.slice(start, start + limit);
 
     // 4) attach a sample pageUrl + lastVotedAt
     const contentIds = top.map((r) => r.contentId);
@@ -110,16 +156,24 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    const payload = {
       ok: true,
+      total,
+      page,
+      limit,
       items: top.map((r) => ({
         ...r,
         total: r.up + r.down,
         pageUrl: extra.get(r.contentId)?.pageUrl || null,
         lastVotedAt: extra.get(r.contentId)?.lastVotedAt || null,
       })),
-    });
+    };
+
+    await setCached(cacheKey, payload, 15_000);
+    if (lockAcquired) await releaseLock(lockKey);
+    return NextResponse.json(payload);
   } catch (e: any) {
+    if (lockAcquired && lockKey) await releaseLock(lockKey);
     return NextResponse.json(
       { error: e?.message || "Server error" },
       { status: 500 },

@@ -1,16 +1,25 @@
+// app/api/content/[contentId]/transcript/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import { getGoogleUserFromAccessToken } from "@/app/lib/google";
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ contentId: string }> },
+  { params }: { params: Promise<{ contentId: string }> },
 ) {
   try {
-    const { contentId } = await context.params;
-    const decoded = decodeURIComponent(contentId);
+    const auth = req.headers.get("authorization") || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await getGoogleUserFromAccessToken(token);
+
+    const contentId = decodeURIComponent((await params).contentId);
 
     const segments = await prisma.transcriptSegment.findMany({
-      where: { contentId: decoded },
+      where: { contentId },
       orderBy: { start: "asc" },
       select: {
         start: true,
@@ -21,7 +30,7 @@ export async function GET(
 
     return NextResponse.json({
       ok: true,
-      contentId: decoded,
+      contentId,
       segments,
     });
   } catch (e: any) {
