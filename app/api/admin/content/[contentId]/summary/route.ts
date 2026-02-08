@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import { getGoogleUserFromAccessToken } from "@/app/lib/google";
 import { VoteType } from "@/app/generated/prisma/enums";
-import {
-  acquireLock,
-  checkRateLimit,
-  getCached,
-  releaseLock,
-  setCached,
-} from "@/app/lib/publicCache";
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
@@ -39,8 +32,6 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ contentId: string }> },
 ) {
-  let lockAcquired = false;
-  let lockKey = "";
   try {
     const check = await requireAdmin(req);
     if (!check.ok) {
@@ -50,47 +41,8 @@ export async function GET(
       );
     }
 
-    const adminId = check.user.id;
     const { contentId } = await context.params;
     const decodedContentId = decodeURIComponent(contentId);
-    const url = new URL(req.url);
-    const fresh =
-      url.searchParams.get("fresh") === "1" ||
-      req.headers.get("x-cache-bypass") === "1";
-
-    const cacheKey = `admin-content-summary:${decodedContentId}`;
-    if (!fresh) {
-      const cached = await getCached<{ ok: boolean; contentId: string }>(
-        cacheKey,
-      );
-      if (cached) return NextResponse.json(cached);
-    }
-
-    if (fresh) {
-      const limitCheck = await checkRateLimit(req.headers, {
-        keyPrefix: "refresh-admin-summary",
-        keySuffix: adminId,
-        max: 30,
-        windowMs: 60_000,
-      });
-      if (!limitCheck.ok) {
-        return NextResponse.json(
-          { error: "Refresh rate limit exceeded" },
-          {
-            status: 429,
-            headers: { "Retry-After": String(limitCheck.retryAfter) },
-          },
-        );
-      }
-      lockKey = `lock:admin-summary:${decodedContentId}`;
-      lockAcquired = await acquireLock(lockKey, 3000);
-      if (!lockAcquired) {
-        const cached = await getCached<{ ok: boolean; contentId: string }>(
-          cacheKey,
-        );
-        if (cached) return NextResponse.json(cached);
-      }
-    }
 
     const grouped = await prisma.vote.groupBy({
       by: ["timeBucket", "voteType"],
@@ -155,11 +107,8 @@ export async function GET(
       timeline,
     };
 
-    await setCached(cacheKey, payload, 15_000);
-    if (lockAcquired) await releaseLock(lockKey);
     return NextResponse.json(payload);
   } catch (e: any) {
-    if (lockAcquired && lockKey) await releaseLock(lockKey);
     return NextResponse.json(
       { error: e?.message || "Server error" },
       { status: 500 },

@@ -1,32 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import { VoteType } from "@/app/generated/prisma/enums";
-import { checkRateLimit, getCached, setCached } from "@/app/lib/publicCache";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ contentId: string }> },
 ) {
   try {
-    const limitCheck = await checkRateLimit(req.headers, {
-      keyPrefix: "public-summary",
-      max: 120,
-      windowMs: 60_000,
-    });
-    if (!limitCheck.ok) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429, headers: { "Retry-After": String(limitCheck.retryAfter) } },
-      );
-    }
-
     const contentId = decodeURIComponent((await params).contentId);
     const url = new URL(req.url);
     const limit = Math.min(Number(url.searchParams.get("limit") || 10), 50);
-
-    const cacheKey = `summary:${contentId}:${limit}`;
-    const cached = await getCached<{ ok: boolean; contentId: string }>(cacheKey);
-    if (cached) return NextResponse.json(cached);
 
     const grouped = await prisma.vote.groupBy({
       by: ["timeBucket", "voteType"],
@@ -98,7 +81,6 @@ export async function GET(
       topUp,
     };
 
-    await setCached(cacheKey, payload, 60_000);
     return NextResponse.json(payload);
   } catch (e: any) {
     return NextResponse.json(

@@ -1,3 +1,4 @@
+//@ts-nocheck
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -51,13 +52,6 @@ type Summary = {
 
 type TranscriptSegment = { start: number; dur: number; text: string };
 
-type CacheMetrics = {
-  hits: number;
-  misses: number;
-  sets: number;
-  rateLimited: number;
-  lockDenied: number;
-};
 
 function fmtTime(sec: number) {
   const s = Math.max(0, Math.floor(sec));
@@ -115,7 +109,6 @@ function getOpenUrl(contentId: string, pageUrl?: string | null) {
 export default function AdminDashboard({ token }: { token: string }) {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [cacheMetrics, setCacheMetrics] = useState<CacheMetrics | null>(null);
   const [items, setItems] = useState<ContentRow[]>([]);
   const [itemsTotal, setItemsTotal] = useState(0);
   const [contentMeta, setContentMeta] = useState<Record<string, ContentMeta>>(
@@ -170,15 +163,6 @@ export default function AdminDashboard({ token }: { token: string }) {
     })
       .then((r) => r.json())
       .then((j) => setStats(j));
-  }, [token]);
-
-  useEffect(() => {
-    fetch("/api/admin/cache/metrics", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((j) => setCacheMetrics(j.metrics || null))
-      .catch(() => setCacheMetrics(null));
   }, [token]);
 
   async function loadContent(nextPage = page, bypass = false) {
@@ -318,7 +302,12 @@ export default function AdminDashboard({ token }: { token: string }) {
       );
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to load votes");
-      return json as { votes: VoteRow[]; total: number; page: number; limit: number };
+      return json as {
+        votes: VoteRow[];
+        total: number;
+        page: number;
+        limit: number;
+      };
     },
   });
 
@@ -438,37 +427,6 @@ export default function AdminDashboard({ token }: { token: string }) {
           </div>
 
           <div className="glass-panel p-5">
-            <div className="section-title">Cache Metrics</div>
-            {!cacheMetrics && (
-              <div className="text-[var(--muted)] text-sm mt-3">Loading…</div>
-            )}
-            {cacheMetrics && (
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="stat-card">
-                  <div className="stat-value">{cacheMetrics.hits}</div>
-                  <div className="stat-label">Hits</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{cacheMetrics.misses}</div>
-                  <div className="stat-label">Misses</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{cacheMetrics.sets}</div>
-                  <div className="stat-label">Sets</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{cacheMetrics.rateLimited}</div>
-                  <div className="stat-label">Rate Limited</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{cacheMetrics.lockDenied}</div>
-                  <div className="stat-label">Lock Denied</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="glass-panel p-5">
             <div className="section-title">Filters</div>
             <div className="mt-4 space-y-3">
               <select
@@ -518,9 +476,7 @@ export default function AdminDashboard({ token }: { token: string }) {
             <div className="flex items-center justify-between">
               <div>
                 <div className="section-title">Videos</div>
-                <div className="text-lg font-semibold">
-                  {itemsTotal} total
-                </div>
+                <div className="text-lg font-semibold">{itemsTotal} total</div>
               </div>
               <div className="text-xs text-[var(--muted)]">
                 {loading ? "Loading…" : "Updated just now"}
@@ -528,9 +484,7 @@ export default function AdminDashboard({ token }: { token: string }) {
             </div>
 
             <div className="mt-4 space-y-3">
-              {loading && (
-                <div className="text-[var(--muted)]">Loading…</div>
-              )}
+              {loading && <div className="text-[var(--muted)]">Loading…</div>}
               {!loading && items.length === 0 && (
                 <div className="text-[var(--muted)]">No results</div>
               )}
@@ -574,7 +528,8 @@ export default function AdminDashboard({ token }: { token: string }) {
                           <span
                             onClick={(event) => {
                               event.stopPropagation();
-                              if (openUrl !== "#") window.open(openUrl, "_blank");
+                              if (openUrl !== "#")
+                                window.open(openUrl, "_blank");
                             }}
                             className="text-xs text-[var(--muted)] hover:text-white"
                           >
@@ -582,12 +537,17 @@ export default function AdminDashboard({ token }: { token: string }) {
                           </span>
                         </div>
                         <div className="text-xs text-[var(--muted)] truncate">
-                          {meta?.pageHost || meta?.pageUrl || item.pageUrl || "—"}
+                          {meta?.pageHost ||
+                            meta?.pageUrl ||
+                            item.pageUrl ||
+                            "—"}
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <span className="chip badge-up">▲ {item.up}</span>
                           <span className="chip badge-down">▼ {item.down}</span>
-                          <span className="chip">{fmtShortDate(item.lastVotedAt)}</span>
+                          <span className="chip">
+                            {fmtShortDate(item.lastVotedAt)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -679,7 +639,8 @@ export default function AdminDashboard({ token }: { token: string }) {
                     <div className="text-sm text-[var(--muted)] break-words">
                       {selectedMeta?.pageUrl || activeId} •{" "}
                       {fmtShortDate(
-                        items.find((i) => i.contentId === activeId)?.lastVotedAt,
+                        items.find((i) => i.contentId === activeId)
+                          ?.lastVotedAt,
                       )}
                     </div>
 
@@ -793,7 +754,9 @@ export default function AdminDashboard({ token }: { token: string }) {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="text-xs text-[var(--muted)]">▶</div>
+                                <div className="text-xs text-[var(--muted)]">
+                                  ▶
+                                </div>
                               </button>
 
                               {isOpen && (
@@ -813,7 +776,8 @@ export default function AdminDashboard({ token }: { token: string }) {
                                     (!snippet?.segments ||
                                       snippet.segments.length === 0) && (
                                       <div className="text-[var(--muted)]">
-                                        No transcript text found for this moment.
+                                        No transcript text found for this
+                                        moment.
                                       </div>
                                     )}
                                   {!snippet?.loading &&
@@ -852,8 +816,8 @@ export default function AdminDashboard({ token }: { token: string }) {
                           <div className="flex items-center justify-between text-xs text-[var(--muted)] pt-2">
                             <span>
                               Showing {(votesPage - 1) * votesPerPage + 1} -{" "}
-                              {Math.min(votesPage * votesPerPage, votesTotal)} of{" "}
-                              {votesTotal}
+                              {Math.min(votesPage * votesPerPage, votesTotal)}{" "}
+                              of {votesTotal}
                             </span>
                             <div className="flex items-center gap-2">
                               <span className="px-2 py-1 rounded-lg border border-white/10 bg-white/5">

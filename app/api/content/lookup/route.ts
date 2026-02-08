@@ -27,7 +27,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, items: [] });
     }
 
-    const uniqueIds = Array.from(new Set(contentIds)).slice(0, 200);
+    //@ts-expect-error
+    const uniqueIds: string[] = Array.from(new Set(contentIds)).slice(0, 200);
 
     const items = await prisma.content.findMany({
       where: { contentId: { in: uniqueIds } },

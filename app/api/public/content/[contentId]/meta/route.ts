@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
-import { checkRateLimit, getCached, setCached } from "@/app/lib/publicCache";
 
 function videoIdFromContentId(contentId: string) {
   if (!contentId?.startsWith("yt:")) return null;
@@ -13,22 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ contentId: string }> },
 ) {
   try {
-    const limit = await checkRateLimit(req.headers, {
-      keyPrefix: "public-meta",
-      max: 180,
-      windowMs: 60_000,
-    });
-    if (!limit.ok) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
-      );
-    }
-
     const contentId = decodeURIComponent((await params).contentId);
-    const cacheKey = `meta:${contentId}`;
-    const cached = await getCached<{ ok: boolean; item: any }>(cacheKey);
-    if (cached) return NextResponse.json(cached);
 
     const item = await prisma.content.findUnique({
       where: { contentId },
@@ -68,7 +52,6 @@ export async function GET(
       },
     };
 
-    await setCached(cacheKey, payload, 5 * 60_000);
     return NextResponse.json(payload);
   } catch (e: any) {
     return NextResponse.json(

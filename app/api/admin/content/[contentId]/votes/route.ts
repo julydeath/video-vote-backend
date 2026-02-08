@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import { getGoogleUserFromAccessToken } from "@/app/lib/google";
-import {
-  acquireLock,
-  checkRateLimit,
-  getCached,
-  releaseLock,
-  setCached,
-} from "@/app/lib/publicCache";
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
@@ -38,8 +31,6 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ contentId: string }> },
 ) {
-  let lockAcquired = false;
-  let lockKey = "";
   try {
     const check = await requireAdmin(req);
     if (!check.ok) {
@@ -49,86 +40,37 @@ export async function GET(
       );
     }
 
-    const adminId = check.user.id;
     const { contentId } = await context.params;
     const decodedContentId = decodeURIComponent(contentId);
 
     const url = new URL(req.url);
-    const fresh =
-      url.searchParams.get("fresh") === "1" ||
-      req.headers.get("x-cache-bypass") === "1";
     const limit = Math.min(Number(url.searchParams.get("limit") || 50), 200);
     const page = Math.max(Number(url.searchParams.get("page") || 1), 1);
     const skip = (page - 1) * limit;
 
-    const cacheKey = `admin-content-votes:${decodedContentId}:${page}:${limit}`;
-    if (!fresh) {
-      const cached = await getCached<{
-        ok: boolean;
-        votes: any[];
-        total: number;
-        page: number;
-        limit: number;
-      }>(cacheKey);
-      if (cached) return NextResponse.json(cached);
-    }
-
-    if (fresh) {
-      const limitCheck = await checkRateLimit(req.headers, {
-        keyPrefix: "refresh-admin-content-votes",
-        keySuffix: adminId,
-        max: 30,
-        windowMs: 60_000,
-      });
-      if (!limitCheck.ok) {
-        return NextResponse.json(
-          { error: "Refresh rate limit exceeded" },
-          {
-            status: 429,
-            headers: { "Retry-After": String(limitCheck.retryAfter) },
-          },
-        );
-      }
-      lockKey = `lock:admin-content-votes:${decodedContentId}:${page}:${limit}`;
-      lockAcquired = await acquireLock(lockKey, 3000);
-      if (!lockAcquired) {
-        const cached = await getCached<{
-          ok: boolean;
-          votes: any[];
-          total: number;
-          page: number;
-          limit: number;
-        }>(cacheKey);
-        if (cached) return NextResponse.json(cached);
-      }
-    }
-
     const [votes, total] = await Promise.all([
       prisma.vote.findMany({
-      where: { contentId: decodedContentId },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        contentId: true,
-        voteType: true,
-        timeSeconds: true,
-        timeBucket: true,
-        pageUrl: true,
-        createdAt: true,
-        user: { select: { id: true, email: true, name: true } },
-      },
-    }),
+        where: { contentId: decodedContentId },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          contentId: true,
+          voteType: true,
+          timeSeconds: true,
+          timeBucket: true,
+          pageUrl: true,
+          createdAt: true,
+          user: { select: { id: true, email: true, name: true } },
+        },
+      }),
       prisma.vote.count({ where: { contentId: decodedContentId } }),
     ]);
 
     const payload = { ok: true, votes, total, page, limit };
-    await setCached(cacheKey, payload, 15_000);
-    if (lockAcquired) await releaseLock(lockKey);
     return NextResponse.json(payload);
   } catch (e: any) {
-    if (lockAcquired && lockKey) await releaseLock(lockKey);
     return NextResponse.json(
       { error: e?.message || "Server error" },
       { status: 500 },

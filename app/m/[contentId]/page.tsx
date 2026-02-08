@@ -38,11 +38,12 @@ function fmtTime(sec: number) {
 
 function getBaseUrl() {
   if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
-  const h = headers();
-  const proto = h.get("x-forwarded-proto") || "http";
-  const host = h.get("x-forwarded-host") || h.get("host");
-  if (!host) return "http://localhost:3000";
-  return `${proto}://${host}`;
+  // const h = headers();
+  // const proto = h.get("x-forwarded-proto") || "http";
+  // const host = h.get("x-forwarded-host") || h.get("host");
+  // if (!host) return "http://localhost:3000";
+  // return `${proto}://${host}`;
+  return "http://localhost:3000";
 }
 
 async function fetchMeta(contentId: string): Promise<MetaResponse | null> {

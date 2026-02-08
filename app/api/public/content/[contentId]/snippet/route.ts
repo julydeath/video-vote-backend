@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
-import { checkRateLimit, getCached, setCached } from "@/app/lib/publicCache";
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -11,21 +10,6 @@ export async function GET(
   { params }: { params: Promise<{ contentId: string }> },
 ) {
   try {
-    const limitCheck = await checkRateLimit(req.headers, {
-      keyPrefix: "public-snippet",
-      max: 240,
-      windowMs: 60_000,
-    });
-    if (!limitCheck.ok) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        {
-          status: 429,
-          headers: { "Retry-After": String(limitCheck.retryAfter) },
-        },
-      );
-    }
-
     const contentId = decodeURIComponent((await params).contentId);
     const url = new URL(req.url);
     const center = Number(url.searchParams.get("center"));
@@ -34,12 +18,6 @@ export async function GET(
       2,
       60,
     );
-
-    const cacheKey = `snippet:${contentId}:${center}:${windowSec}`;
-    const cached = await getCached<{ ok: boolean; contentId: string }>(
-      cacheKey,
-    );
-    if (cached) return NextResponse.json(cached);
 
     if (!Number.isFinite(center)) {
       return NextResponse.json(
@@ -82,7 +60,6 @@ export async function GET(
       segments: filtered,
     };
 
-    await setCached(cacheKey, payload, 5 * 60_000);
     return NextResponse.json(payload);
   } catch (e: any) {
     return NextResponse.json(

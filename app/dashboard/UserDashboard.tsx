@@ -619,7 +619,7 @@ export default function UserDashboard({ token }: { token: string }) {
                 ))}
               </div>
               <button
-                onClick={loadVotes}
+                onClick={() => loadVotes()}
                 className="mt-2 w-full rounded-xl bg-[var(--accent-2)]/20 border border-[var(--accent-2)]/40 px-4 py-2 text-sm font-medium hover:bg-[var(--accent-2)]/30 transition"
               >
                 Apply filters
